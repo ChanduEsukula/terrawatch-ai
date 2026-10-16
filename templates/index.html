@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TerraWatch AI</title>
+
+<!-- ================= LEAFLET ================= -->
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""
+/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<!-- ================= STYLE ================= -->
+
+<style>
+
+body{
+  font-family: Arial, sans-serif;
+  margin: 30px;
+}
+
+.panel{
+  margin-bottom: 15px;
+}
+
+#stats{
+  margin-top: 20px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  width: 300px;
+}
+
+#map{
+  height: 400px;
+  margin-top: 20px;
+  border: 1px solid #ccc;
+}
+
+button{
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+</style>
+
+</head>
+
+<body>
+<!-- Adapted from SMV09/earth-engine-webgis-python; MIT, see LICENSES/upstream-MIT.txt. -->
+
+<h2>🌍 TerraWatch AI NDVI Dashboard </h2>
+<p>Landsat 8 RGB and NDVI. End date is exclusive; maximum range is 366 days.</p>
+<p id="status" role="status">Earth Engine analysis requires a configured project and local credentials.</p>
+
+<!-- ================= INPUT PANEL ================= -->
+
+<div class="panel">
+
+Start:
+<input type="date" id="start">
+
+End:
+<input type="date" id="end">
+
+<button onclick="analyze()">Analyze</button>
+
+</div>
+
+<!-- ================= OUTPUT ================= -->
+
+<div id="stats">
+<b>Results will appear here...</b>
+</div>
+
+<!-- ================= MAP ================= -->
+
+<div id="map"></div>
+
+<!-- ================= SCRIPT ================= -->
+
+<script>
+
+// ================= MAP INITIALIZATION =================
+
+const roi = {{ roi | tojson }};
+const map = L.map("map").fitBounds([[roi[1], roi[0]], [roi[3], roi[2]]]);
+L.rectangle([[roi[1], roi[0]], [roi[3], roi[2]]], {fill: false}).addTo(map);
+
+// Base map (OpenStreetMap)
+L.tileLayer(
+  "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+  {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
+  }
+).addTo(map);
+
+
+// ================= GLOBAL LAYERS =================
+
+let rgbLayer = null;
+let ndviLayer = null;
+let layerControl = null;
+
+
+// =====================================================
+// Analyze (Frontend → Backend)
+// =====================================================
+
+function analyze(){
+
+  const start = document.getElementById("start").value;
+  const end   = document.getElementById("end").value;
+
+  if(!start || !end){
+    alert("Select dates first");
+    return;
+  }
+
+  // Call backend API
+  document.getElementById("status").textContent = "Analyzing satellite imagery…";
+  document.querySelector("button").disabled = true;
+  fetch(`/get_stats?${new URLSearchParams({start, end})}`)
+
+  .then(res => res.json())
+
+  .then(data => {
+
+    if(data.error){
+      document.getElementById("status").textContent = data.error;
+      return;
+    }
+
+    // ================= TEXT OUTPUT =================
+
+    document.getElementById("stats").textContent =
+      `Start: ${data.start} | End (exclusive): ${data.end} | Mean NDVI: ${data.mean_ndvi}`;
+    document.getElementById("status").textContent = "Analysis complete.";
+
+    // ================= REMOVE OLD LAYERS =================
+
+    if(rgbLayer) map.removeLayer(rgbLayer);
+    if(ndviLayer) map.removeLayer(ndviLayer);
+
+
+    // ================= ADD NEW LAYERS =================
+
+    rgbLayer  = L.tileLayer(data.rgb);
+    ndviLayer = L.tileLayer(data.ndvi);
+
+    // Show RGB by default
+    rgbLayer.addTo(map);
+
+
+    // ================= LAYER CONTROL =================
+
+    if(layerControl){
+      map.removeControl(layerControl);
+    }
+
+    layerControl = L.control.layers(null, {
+      "RGB": rgbLayer,
+      "NDVI": ndviLayer
+    }).addTo(map);
+
+  })
+
+  .catch(err => {
+    console.error(err);
+    document.getElementById("status").textContent = "Server unavailable; check the local server.";
+  })
+  .finally(() => { document.querySelector("button").disabled = false; });
+
+}
+
+</script>
+
+</body>
+</html>

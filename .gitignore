@@ -1,0 +1,25 @@
+.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+credentials*.json
+*service-account*.json
+.pytest_cache/
+
+# Python
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Environment variables and credentials
+.env
+.env.*
+!.env.example
+credentials.json
+service-account*.json
+
+# macOS
+.DS_Store
